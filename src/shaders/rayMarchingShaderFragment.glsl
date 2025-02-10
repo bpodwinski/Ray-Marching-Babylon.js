@@ -135,7 +135,7 @@ float rayMarch(vec3 ro, vec3 rd, out float glow) {
         }
 
         t += d;
-        if(t > 5000.0)
+        if(t > 100000.0)
             break;
     }
     return hit ? t : -1.0;
