@@ -52,12 +52,12 @@ const createScene = () => {
   ground.material = groundMaterial;
 
   // Cube
-  const cube = MeshBuilder.CreateBox("cube", { size: 2 }, scene);
+  const cube = MeshBuilder.CreateSphere("cube", { diameter: 2 }, scene);
   cube.position = new Vector3(0, 1, 0);
 
   // Sphere
-  const sphere = MeshBuilder.CreateSphere("sphere", { diameter: 3 }, scene);
-  sphere.position = new Vector3(0, 1.45, 6);
+  // const sphere = MeshBuilder.CreateSphere("sphere", { diameter: 3 }, scene);
+  // sphere.position = new Vector3(0, 1.45, 6);
 
   let collisionDetected = 0.0; // Valeur envoyée au shader
 
@@ -97,7 +97,7 @@ const createScene = () => {
 
   // Créer un DepthRenderer pour la scène
   const depthRenderer = new DepthRenderer(scene);
-  //depthRenderer.useOnlyInActiveCamera = true; // Facultatif, pour limiter le calcul à la caméra active
+  depthRenderer.useOnlyInActiveCamera = true; // Facultatif, pour limiter le calcul à la caméra active
 
   // Vous pouvez accéder à la texture de profondeur ainsi :
   const depthTexture = depthRenderer.getDepthMap();
@@ -162,10 +162,15 @@ Effect.ShadersStore["rayMarchingShaderFragmentShader"] = `
         return posWS.xyz;
     }
 
-    // Signed Distance Function (SDF) pour un cube
+    // SDF cube
     float sdfBox(vec3 p, vec3 b) {
         vec3 d = abs(p) - b;
         return min(max(d.x, max(d.y, d.z)), 0.0) + length(max(d, 0.0));
+    }
+
+    // SDF sphere
+    float sdfSphere(vec3 p, vec3 sphereCenter, float radius) {
+        return length(p - sphereCenter) - radius;
     }
 
     // Fonction de ray marching modifiée pour accumuler un glow volumétrique
@@ -173,16 +178,22 @@ Effect.ShadersStore["rayMarchingShaderFragmentShader"] = `
         float t = 0.0;
         glow = 0.0;
         bool hit = false;
-        const int steps = 10; // On peut augmenter le nombre d'itérations pour un effet plus prononcé
+        const int steps = 100; // On peut augmenter le nombre d'itérations pour un effet plus prononcé
         for (int i = 0; i < steps; i++) {
             vec3 p = ro + t * rd;
+
             // Calcul de la distance signée au cube (déplacé par cubePosition)
-            float d = sdfBox(p - cubePosition, vec3(1.0));
+            // float d = sdfBox(p - cubePosition, vec3(1.0));
+
+            // Calcul de la distance signée au cube (déplacé par cubePosition)
+            float d = sdfSphere(p, cubePosition, 1.0);
             
             // Accumulation de la contribution glow :
             // Plus d est faible (donc proche de la surface), plus la contribution est forte.
             // Ici, le facteur 15.0 et 0.1 sont des coefficients à ajuster selon l'effet désiré.
-            glow += exp(-d * 1.0) * 0.2;
+            // glow += exp(-d * 1.0) * 0.2;
+            //glow += exp(-d * 1.0) * 0.2 * (0.5 + 0.5 * sin(time * 2.0));
+            glow += exp(-d * (1.0 + 0.5 * sin(time))) * 0.2;
             
             // Marquer l'intersection mais ne pas arrêter l'intégration
             if (!hit && d < 50.0) {
