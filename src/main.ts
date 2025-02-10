@@ -9,6 +9,7 @@ import {
   Effect,
   PointLight,
   Ray,
+  Matrix,
 } from "@babylonjs/core";
 import "@babylonjs/core/Debug/debugLayer";
 import "@babylonjs/inspector";
@@ -41,17 +42,18 @@ const createScene = () => {
   cube.position = new Vector3(0, 0, 0);
 
   let collisionDetected = 0.0; // Valeur envoyée au shader
-  const rayOrigin = camera.position;
-  const rayDirection = camera.getForwardRay().direction;
 
   // Fonction pour vérifier si le rayon intersecte le cube
   scene.onBeforeRenderObservable.add(() => {
-    const ray = new Ray(rayOrigin, rayDirection, 1000);
+    // Recalculer l'origine et la direction à chaque frame
+    const currentOrigin = camera.position.clone();
+    const currentDirection = camera.getForwardRay().direction.clone();
+    const ray = new Ray(currentOrigin, currentDirection, 1000);
 
     if (ray.intersectsMesh(cube, true)) {
-      collisionDetected = 1.0; // Collision détectée
+      collisionDetected = 1.0;
     } else {
-      collisionDetected = 0.0; // Pas de collision
+      collisionDetected = 0.0;
     }
   });
 
@@ -81,9 +83,9 @@ const createScene = () => {
     effect.setVector3("cameraPosition", camera.position);
     effect.setMatrix(
       "inverseProjection",
-      camera.getProjectionMatrix().invert()
+      Matrix.Invert(camera.getProjectionMatrix())
     );
-    effect.setMatrix("inverseView", camera.getViewMatrix().invert());
+    effect.setMatrix("inverseView", Matrix.Invert(camera.getViewMatrix()));
     effect.setFloat("cameraNear", camera.minZ);
     effect.setFloat("cameraFar", camera.maxZ);
   };
