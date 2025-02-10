@@ -57,7 +57,7 @@ const createScene = () => {
 
   // Sphere
   const sphere = MeshBuilder.CreateSphere("sphere", { diameter: 3 }, scene);
-  sphere.position = new Vector3(0, 1.45, 4);
+  sphere.position = new Vector3(0, 1.45, 6);
 
   let collisionDetected = 0.0; // Valeur envoyée au shader
 
@@ -173,7 +173,7 @@ Effect.ShadersStore["rayMarchingShaderFragmentShader"] = `
         float t = 0.0;
         glow = 0.0;
         bool hit = false;
-        const int steps = 500; // On peut augmenter le nombre d'itérations pour un effet plus prononcé
+        const int steps = 10; // On peut augmenter le nombre d'itérations pour un effet plus prononcé
         for (int i = 0; i < steps; i++) {
             vec3 p = ro + t * rd;
             // Calcul de la distance signée au cube (déplacé par cubePosition)
@@ -182,10 +182,10 @@ Effect.ShadersStore["rayMarchingShaderFragmentShader"] = `
             // Accumulation de la contribution glow :
             // Plus d est faible (donc proche de la surface), plus la contribution est forte.
             // Ici, le facteur 15.0 et 0.1 sont des coefficients à ajuster selon l'effet désiré.
-            glow += exp(-d * 0.5) * 0.3;
+            glow += exp(-d * 1.0) * 0.2;
             
             // Marquer l'intersection mais ne pas arrêter l'intégration
-            if (!hit && d < 5.0) {
+            if (!hit && d < 50.0) {
                 hit = true;
             }
             
@@ -216,13 +216,12 @@ Effect.ShadersStore["rayMarchingShaderFragmentShader"] = `
         
         vec3 effectColor = sceneColor;
         if (t > 0.0) {
-            // Définir la couleur de base du cube (par exemple rouge en cas de collision, orange sinon)
-            vec3 baseColor = (collisionDetected > 0.5)
-                              ? vec3(0.0, 0.0, 0.0)
-                              : vec3(0.0, 0.0, 0.0);
-            // On mélange la couleur de base avec le glow accumulé.
-            // Ici, le facteur de mélange (par exemple 0.3) est à ajuster selon l'effet désiré.
-            effectColor = mix(baseColor, vec3(glow), 0.5);
+            // Ajoute le glow à la couleur de la scène originale.
+            effectColor = sceneColor + vec3(glow);
+            // Optionnel : on peut clamp pour éviter des valeurs trop élevées.
+            effectColor = clamp(effectColor, 0.0, 1.0);
+        } else {
+            effectColor = sceneColor;
         }
         
         gl_FragColor = vec4(effectColor, 1.0);
