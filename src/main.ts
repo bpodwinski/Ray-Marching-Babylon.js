@@ -12,6 +12,7 @@ import {
   Matrix,
   StandardMaterial,
   Color3,
+  DepthRenderer,
 } from "@babylonjs/core";
 import "@babylonjs/core/Debug/debugLayer";
 import "@babylonjs/inspector";
@@ -37,9 +38,9 @@ const createScene = () => {
   camera.attachControl(canvas, true);
 
   // Lumière
-  const light = new PointLight("light", new Vector3(0, 3, 2), scene);
+  const light = new PointLight("light", new Vector3(-10, 5, 10), scene);
 
-  // Sol
+  // Plane
   const ground = MeshBuilder.CreateGround(
     "ground",
     { width: 20, height: 20 },
@@ -47,12 +48,16 @@ const createScene = () => {
   );
   ground.position = new Vector3(0, 0, 0);
   const groundMaterial = new StandardMaterial("groundMat", scene);
-  groundMaterial.diffuseColor = new Color3(0.0, 1.0, 0.5);
+  groundMaterial.diffuseColor = new Color3(0.4, 0.43, 0.4);
   ground.material = groundMaterial;
 
-  // Cube principal
+  // Cube
   const cube = MeshBuilder.CreateBox("cube", { size: 2 }, scene);
   cube.position = new Vector3(0, 1, 0);
+
+  // Sphere
+  const sphere = MeshBuilder.CreateSphere("sphere", { diameter: 3 }, scene);
+  sphere.position = new Vector3(0, 1.45, 4);
 
   let collisionDetected = 0.0; // Valeur envoyée au shader
 
@@ -90,6 +95,13 @@ const createScene = () => {
     camera
   );
 
+  // Créer un DepthRenderer pour la scène
+  const depthRenderer = new DepthRenderer(scene);
+  //depthRenderer.useOnlyInActiveCamera = true; // Facultatif, pour limiter le calcul à la caméra active
+
+  // Vous pouvez accéder à la texture de profondeur ainsi :
+  const depthTexture = depthRenderer.getDepthMap();
+
   postProcess.onApply = (effect) => {
     effect.setVector2("resolution", new Vector2(canvas.width, canvas.height));
     effect.setFloat("time", performance.now() * 0.001);
@@ -103,8 +115,9 @@ const createScene = () => {
     effect.setMatrix("inverseView", Matrix.Invert(camera.getViewMatrix()));
     effect.setFloat("cameraNear", camera.minZ);
     effect.setFloat("cameraFar", camera.maxZ);
+    effect.setTexture("depthSampler", depthTexture);
   };
-  postProcess.alphaMode = Engine.ALPHA_COMBINE;
+  //postProcess.alphaMode = Engine.ALPHA_SCREENMODE;
 
   return scene;
 };
@@ -126,6 +139,8 @@ Effect.ShadersStore["rayMarchingShaderFragmentShader"] = `
     uniform mat4 inverseView;
     uniform float cameraNear;
     uniform float cameraFar;
+    uniform sampler2D depthSampler;
+    uniform sampler2D textureSampler;
 
     float remap(float value, float min1, float max1, float min2, float max2) {
       return min2 + (value - min1) * (max2 - min2) / (max1 - min1);
@@ -169,6 +184,12 @@ Effect.ShadersStore["rayMarchingShaderFragmentShader"] = `
     void main() {
         // Calcul des coordonnées UV en [0, 1]
         vec2 uv = gl_FragCoord.xy / resolution.xy;
+
+        // Récupérer la couleur de la scène originale
+        vec3 sceneColor = texture2D(textureSampler, uv).rgb;
+
+        // Récupérer la valeur de profondeur (utilisez texture2D en WebGL 1)
+        float depthValue = texture2D(depthSampler, uv).r;
         
         // On peut choisir une profondeur arbitraire (ici 1.0, ou adapter selon vos besoins)
         vec3 worldPos = worldFromUV(uv, 1.0);
@@ -182,17 +203,15 @@ Effect.ShadersStore["rayMarchingShaderFragmentShader"] = `
         // Lancer les rayons de ray marching
         float t = rayMarch(ro, rd);
         
-        vec4 col;
+        vec3 effectColor = sceneColor;
         if (t > 0.0) {
-            // Si le rayon touche le cube, on colore (vert si collision détectée, orange sinon)
-            col = (collisionDetected > 0.5)
-                  ? vec4(0.0, 1.0, 0.0, 1.0)
-                  : vec4(1.0, 0.5, 0.2, 1.0);
-        } else {
-            // Pas d'intersection : fragment transparent
-            col = vec4(0.0, 0.0, 0.0, 0.0);
+            // Ici, au lieu d'afficher une couleur fixe, on peut afficher la profondeur du cube.
+            // Par exemple, mapper depthValue en niveaux de gris :
+            // effectColor = vec3(depthValue);
+            // Vous pouvez aussi choisir d'afficher vert/orange selon collisionDetected, en mélangeant avec la profondeur :
+            effectColor = mix(vec3(depthValue), (collisionDetected > 0.5 ? vec3(1.0, 0.0, 0.0) : vec3(1.0, 0.5, 0.2)), 0.3);
         }
         
-        gl_FragColor = col;
+        gl_FragColor = vec4(effectColor, 1.0);
     }
 `;
