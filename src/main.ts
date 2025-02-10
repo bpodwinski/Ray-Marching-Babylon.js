@@ -3,7 +3,6 @@ import {
   Scene,
   ArcRotateCamera,
   Vector3,
-  HemisphericLight,
   MeshBuilder,
   PostProcess,
   Vector2,
@@ -42,14 +41,14 @@ const createScene = () => {
   cube.position = new Vector3(0, 0, 0);
 
   let collisionDetected = 0.0; // Valeur envoyée au shader
+  const rayOrigin = camera.position;
+  const rayDirection = camera.getForwardRay().direction;
 
   // Fonction pour vérifier si le rayon intersecte le cube
   scene.onBeforeRenderObservable.add(() => {
-    const rayOrigin = camera.position;
-    const rayDirection = camera.getForwardRay().direction;
-    const ray = new Ray(rayOrigin, rayDirection, 10);
+    const ray = new Ray(rayOrigin, rayDirection, 1000);
 
-    if (cube.intersectsMesh(cube, true)) {
+    if (ray.intersectsMesh(cube, true)) {
       collisionDetected = 1.0; // Collision détectée
     } else {
       collisionDetected = 0.0; // Pas de collision
@@ -89,6 +88,7 @@ Effect.ShadersStore["rayMarchingShaderFragmentShader"] = `
     uniform float time;
     uniform float collisionDetected;
     uniform vec3 cameraPosition;
+    uniform mat4 viewMatrix;
 
     // Signed Distance Function (SDF) pour un cube
     float sdfBox(vec3 p, vec3 b) {
@@ -113,10 +113,16 @@ Effect.ShadersStore["rayMarchingShaderFragmentShader"] = `
         // Transformation UV pour adapter à la résolution
         vec2 uv = (gl_FragCoord.xy / resolution.xy) * 2.0 - 1.0;
         uv.x *= resolution.x / resolution.y;
+
+        // Champ de vision (FOV) correct pour une caméra en perspective
+        float fov = 1.0;
+        vec3 rd = normalize(vec3(uv * fov, -1.0));
+
+        // Transformation du rayon avec la matrice de vue de Babylon.js
+        rd = (viewMatrix * vec4(rd, 0.0)).xyz;
         
-        // Calcul de la direction des rayons à partir de la caméra
-        vec3 ro = cameraPosition; // Position de la caméra
-        vec3 rd = normalize(vec3(uv, -1.0)); // Direction vers la scène
+        // Position de départ des rayons = position de la caméra
+        vec3 ro = cameraPosition;
 
         // Lancer les rayons de ray marching
         float t = rayMarch(ro, rd);
