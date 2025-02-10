@@ -10,6 +10,8 @@ import {
   PointLight,
   Ray,
   Matrix,
+  StandardMaterial,
+  Color3,
 } from "@babylonjs/core";
 import "@babylonjs/core/Debug/debugLayer";
 import "@babylonjs/inspector";
@@ -37,9 +39,20 @@ const createScene = () => {
   // Lumière
   const light = new PointLight("light", new Vector3(0, 3, 2), scene);
 
+  // Sol
+  const ground = MeshBuilder.CreateGround(
+    "ground",
+    { width: 20, height: 20 },
+    scene
+  );
+  ground.position = new Vector3(0, 0, 0);
+  const groundMaterial = new StandardMaterial("groundMat", scene);
+  groundMaterial.diffuseColor = new Color3(0.5, 0.5, 0.5);
+  ground.material = groundMaterial;
+
   // Cube principal
   const cube = MeshBuilder.CreateBox("cube", { size: 2 }, scene);
-  cube.position = new Vector3(0, 0, 0);
+  cube.position = new Vector3(0, 1, 0);
 
   let collisionDetected = 0.0; // Valeur envoyée au shader
 
@@ -66,6 +79,7 @@ const createScene = () => {
       "time",
       "collisionDetected",
       "cameraPosition",
+      "cubePosition",
       "inverseProjection",
       "inverseView",
       "cameraNear",
@@ -81,6 +95,7 @@ const createScene = () => {
     effect.setFloat("time", performance.now() * 0.001);
     effect.setFloat("collisionDetected", collisionDetected);
     effect.setVector3("cameraPosition", camera.position);
+    effect.setVector3("cubePosition", cube.position);
     effect.setMatrix(
       "inverseProjection",
       Matrix.Invert(camera.getProjectionMatrix())
@@ -89,6 +104,7 @@ const createScene = () => {
     effect.setFloat("cameraNear", camera.minZ);
     effect.setFloat("cameraFar", camera.maxZ);
   };
+  postProcess.alphaMode = Engine.ALPHA_COMBINE;
 
   return scene;
 };
@@ -105,6 +121,7 @@ Effect.ShadersStore["rayMarchingShaderFragmentShader"] = `
     uniform float time;
     uniform float collisionDetected;
     uniform vec3 cameraPosition;
+    uniform vec3 cubePosition;
     uniform mat4 inverseProjection;
     uniform mat4 inverseView;
     uniform float cameraNear;
@@ -141,10 +158,10 @@ Effect.ShadersStore["rayMarchingShaderFragmentShader"] = `
         float t = 0.0;
         for (int i = 0; i < 100; i++) {
             vec3 p = ro + t * rd;
-            float d = sdfBox(p, vec3(1.0)); // Cube de taille 2
+            float d = sdfBox(p - cubePosition, vec3(1.0)); // Cube de taille 2
             if (d < 0.001) return t;
             t += d;
-            if (t > 10.0) break;
+            if (t > 100.0) break;
         }
         return -1.0;
     }
@@ -164,15 +181,18 @@ Effect.ShadersStore["rayMarchingShaderFragmentShader"] = `
 
         // Lancer les rayons de ray marching
         float t = rayMarch(ro, rd);
-        vec3 col = vec3(0.0);
-
+        
+        vec4 col;
         if (t > 0.0) {
-            col = vec3(1.0, 0.5, 0.2); // Couleur par défaut
-            if (collisionDetected > 0.5) {
-                col = vec3(0.0, 1.0, 0.0); // Changement de couleur si collision détectée
-            }
+            // Si le rayon touche le cube, on colore (vert si collision détectée, orange sinon)
+            col = (collisionDetected > 0.5)
+                  ? vec4(0.0, 1.0, 0.0, 1.0)
+                  : vec4(1.0, 0.5, 0.2, 1.0);
+        } else {
+            // Pas d'intersection : fragment transparent
+            col = vec4(0.0, 0.0, 0.0, 0.0);
         }
         
-        gl_FragColor = vec4(col, 1.0);
+        gl_FragColor = col;
     }
 `;
