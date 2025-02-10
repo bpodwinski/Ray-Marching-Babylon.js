@@ -41,7 +41,7 @@ const engine = new Engine(canvas, true);
  */
 const createScene = (): Scene => {
   const scene = new Scene(engine);
-  scene.debugLayer.show({ overlay: false });
+  //scene.debugLayer.show({ overlay: false });
   scene.clearColor.set(0, 0, 0, 1);
 
   const camera = new ArcRotateCamera(
