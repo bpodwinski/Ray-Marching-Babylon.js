@@ -2,6 +2,7 @@ import { defineConfig } from "vite";
 
 export default defineConfig(({ command, mode }) => {
   return {
+    base: "/Ray-Marching-Babylon.js/",
     resolve: {
       alias: {
         babylonjs:
