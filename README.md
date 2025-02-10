@@ -7,9 +7,10 @@ This project is a demo showcasing real-time ray marching techniques using Babylo
 - **Ray Marching:** Custom GLSL shader using Signed Distance Functions (SDF) for objects.
 - **Dynamic Glow:** The shader accumulates a dynamic glow effect.
 
-## Demo
+### Ray Data Transmission to the Shader
+Babylon.js calculates the ray's origin and direction on the CPU using methods like `camera.getForwardRay()`. Collision detection is performed in the application code. Instead of sending the full ray to the shader, only key data is passed as uniforms:
 
-You can view the live demo here:  
+## Demo
 [https://bpodwinski.github.io/Ray-Marching-Babylon.js/](https://bpodwinski.github.io/Ray-Marching-Babylon.js/)
 
 ## Getting Started
