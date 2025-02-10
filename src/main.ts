@@ -59,7 +59,16 @@ const createScene = () => {
   const postProcess = new PostProcess(
     "rayMarching",
     "rayMarchingShader",
-    ["resolution", "time", "collisionDetected", "cameraPosition", "viewMatrix"],
+    [
+      "resolution",
+      "time",
+      "collisionDetected",
+      "cameraPosition",
+      "inverseProjection",
+      "inverseView",
+      "cameraNear",
+      "cameraFar",
+    ],
     null,
     1,
     camera
@@ -70,7 +79,13 @@ const createScene = () => {
     effect.setFloat("time", performance.now() * 0.001);
     effect.setFloat("collisionDetected", collisionDetected);
     effect.setVector3("cameraPosition", camera.position);
-    effect.setMatrix("viewMatrix", camera.getViewMatrix());
+    effect.setMatrix(
+      "inverseProjection",
+      camera.getProjectionMatrix().invert()
+    );
+    effect.setMatrix("inverseView", camera.getViewMatrix().invert());
+    effect.setFloat("cameraNear", camera.minZ);
+    effect.setFloat("cameraFar", camera.maxZ);
   };
 
   return scene;
@@ -88,7 +103,30 @@ Effect.ShadersStore["rayMarchingShaderFragmentShader"] = `
     uniform float time;
     uniform float collisionDetected;
     uniform vec3 cameraPosition;
-    uniform mat4 viewMatrix;
+    uniform mat4 inverseProjection;
+    uniform mat4 inverseView;
+    uniform float cameraNear;
+    uniform float cameraFar;
+
+    float remap(float value, float min1, float max1, float min2, float max2) {
+      return min2 + (value - min1) * (max2 - min2) / (max1 - min1);
+    }
+
+    // Calcule la position en monde d'un pixel à partir de ses coordonnées UV et d'une valeur de profondeur
+    vec3 worldFromUV(vec2 UV, float depth) {
+        // Conversion des UV en coordonnées NDC [-1, 1]
+        vec4 ndc = vec4(UV * 2.0 - 1.0, 0.0, 1.0);
+        
+        // Dé-projection en espace de vue
+        vec4 posVS = inverseProjection * ndc;
+        
+        // Correction pour la profondeur (depth remappé de [0,1] à [cameraNear, cameraFar])
+        posVS.xyz *= remap(depth, 0.0, 1.0, cameraNear, cameraFar);
+        
+        // Transformation en espace monde
+        vec4 posWS = inverseView * vec4(posVS.xyz, 1.0);
+        return posWS.xyz;
+    }
 
     // Signed Distance Function (SDF) pour un cube
     float sdfBox(vec3 p, vec3 b) {
@@ -110,18 +148,16 @@ Effect.ShadersStore["rayMarchingShaderFragmentShader"] = `
     }
 
     void main() {
-        // Transformation UV pour adapter à la résolution
-        vec2 uv = (gl_FragCoord.xy / resolution.xy) * 2.0 - 1.0;
-        uv.x *= resolution.x / resolution.y;
-
-        // Champ de vision (FOV) correct pour une caméra en perspective
-        float fov = 1.0;
-        vec3 rd = normalize(vec3(uv * fov, -1.0));
-
-        // Transformation du rayon avec la matrice de vue de Babylon.js
-        rd = (viewMatrix * vec4(rd, 0.0)).xyz;
+        // Calcul des coordonnées UV en [0, 1]
+        vec2 uv = gl_FragCoord.xy / resolution.xy;
         
-        // Position de départ des rayons = position de la caméra
+        // On peut choisir une profondeur arbitraire (ici 1.0, ou adapter selon vos besoins)
+        vec3 worldPos = worldFromUV(uv, 1.0);
+
+        // La direction du rayon est le vecteur entre la position de la caméra et la position dé-projetée
+        vec3 rd = normalize(worldPos - cameraPosition);
+        
+        // L'origine du rayon est la position de la caméra
         vec3 ro = cameraPosition;
 
         // Lancer les rayons de ray marching
