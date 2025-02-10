@@ -1,4 +1,0 @@
-// Vertex shader
-
-
-// Fragment shader
