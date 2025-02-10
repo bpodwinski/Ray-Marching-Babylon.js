@@ -47,7 +47,7 @@ const createScene = () => {
   );
   ground.position = new Vector3(0, 0, 0);
   const groundMaterial = new StandardMaterial("groundMat", scene);
-  groundMaterial.diffuseColor = new Color3(0.5, 0.5, 0.5);
+  groundMaterial.diffuseColor = new Color3(0.0, 1.0, 0.5);
   ground.material = groundMaterial;
 
   // Cube principal
