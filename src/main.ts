@@ -31,7 +31,7 @@ const createScene = () => {
     "camera",
     Math.PI / 4,
     Math.PI / 4,
-    5,
+    20,
     new Vector3(0, 0, 0),
     scene
   );
@@ -168,48 +168,61 @@ Effect.ShadersStore["rayMarchingShaderFragmentShader"] = `
         return min(max(d.x, max(d.y, d.z)), 0.0) + length(max(d, 0.0));
     }
 
-    // Ray Marching : Chaque pixel lance un rayon
-    float rayMarch(vec3 ro, vec3 rd) {
+    // Fonction de ray marching modifiée pour accumuler un glow volumétrique
+    float rayMarch(vec3 ro, vec3 rd, out float glow) {
         float t = 0.0;
-        for (int i = 0; i < 100; i++) {
+        glow = 0.0;
+        bool hit = false;
+        const int steps = 500; // On peut augmenter le nombre d'itérations pour un effet plus prononcé
+        for (int i = 0; i < steps; i++) {
             vec3 p = ro + t * rd;
-            float d = sdfBox(p - cubePosition, vec3(1.0)); // Cube de taille 2
-            if (d < 0.001) return t;
+            // Calcul de la distance signée au cube (déplacé par cubePosition)
+            float d = sdfBox(p - cubePosition, vec3(1.0));
+            
+            // Accumulation de la contribution glow :
+            // Plus d est faible (donc proche de la surface), plus la contribution est forte.
+            // Ici, le facteur 15.0 et 0.1 sont des coefficients à ajuster selon l'effet désiré.
+            glow += exp(-d * 0.5) * 0.3;
+            
+            // Marquer l'intersection mais ne pas arrêter l'intégration
+            if (!hit && d < 5.0) {
+                hit = true;
+            }
+            
             t += d;
             if (t > 100.0) break;
         }
-        return -1.0;
+        // Retourne t si on a détecté un hit, sinon -1.0
+        return hit ? t : -1.0;
     }
 
     void main() {
         // Calcul des coordonnées UV en [0, 1]
         vec2 uv = gl_FragCoord.xy / resolution.xy;
-
+        
         // Récupérer la couleur de la scène originale
         vec3 sceneColor = texture2D(textureSampler, uv).rgb;
-
-        // Récupérer la valeur de profondeur (utilisez texture2D en WebGL 1)
-        float depthValue = texture2D(depthSampler, uv).r;
         
-        // On peut choisir une profondeur arbitraire (ici 1.0, ou adapter selon vos besoins)
+        // On choisit une profondeur arbitraire (ici 1.0, à ajuster si besoin)
         vec3 worldPos = worldFromUV(uv, 1.0);
-
-        // La direction du rayon est le vecteur entre la position de la caméra et la position dé-projetée
-        vec3 rd = normalize(worldPos - cameraPosition);
         
-        // L'origine du rayon est la position de la caméra
+        // Calcul de la direction du rayon et de son origine
+        vec3 rd = normalize(worldPos - cameraPosition);
         vec3 ro = cameraPosition;
-
-        // Lancer les rayons de ray marching
-        float t = rayMarch(ro, rd);
+        
+        // Ray marching avec accumulation de glow
+        float glow;
+        float t = rayMarch(ro, rd, glow);
         
         vec3 effectColor = sceneColor;
         if (t > 0.0) {
-            // Ici, au lieu d'afficher une couleur fixe, on peut afficher la profondeur du cube.
-            // Par exemple, mapper depthValue en niveaux de gris :
-            // effectColor = vec3(depthValue);
-            // Vous pouvez aussi choisir d'afficher vert/orange selon collisionDetected, en mélangeant avec la profondeur :
-            effectColor = mix(vec3(depthValue), (collisionDetected > 0.5 ? vec3(1.0, 0.0, 0.0) : vec3(1.0, 0.5, 0.2)), 0.3);
+            // Définir la couleur de base du cube (par exemple rouge en cas de collision, orange sinon)
+            vec3 baseColor = (collisionDetected > 0.5)
+                              ? vec3(0.0, 0.0, 0.0)
+                              : vec3(0.0, 0.0, 0.0);
+            // On mélange la couleur de base avec le glow accumulé.
+            // Ici, le facteur de mélange (par exemple 0.3) est à ajuster selon l'effet désiré.
+            effectColor = mix(baseColor, vec3(glow), 0.5);
         }
         
         gl_FragColor = vec4(effectColor, 1.0);
