@@ -13,6 +13,8 @@ import {
   StandardMaterial,
   Color3,
   FreeCamera,
+  CubeTexture,
+  Texture,
 } from "@babylonjs/core";
 
 import "@babylonjs/core/Debug/debugLayer";
@@ -21,6 +23,37 @@ import "@babylonjs/inspector";
 import rayMarchingShaderFragment from "./shaders/rayMarchingShaderFragment.glsl?raw";
 Effect.ShadersStore["rayMarchingShaderFragmentShader"] =
   rayMarchingShaderFragment;
+
+/**
+ * Manages scale conversion between real-world distances (in kilometers)
+ */
+class ScaleManager {
+  /**
+   * Scale factor to convert kilometers into simulation units.
+   * In this context, 1 Babylon.js unit represents 1,000 km.
+   */
+  private static readonly SCALE_FACTOR = 1 / 1_000;
+
+  /**
+   * Converts a distance from kilometers to simulation units.
+   *
+   * @param value_km - The distance in kilometers.
+   * @returns The equivalent distance in simulation units.
+   */
+  public static toSimulationUnits(value_km: number): number {
+    return value_km * this.SCALE_FACTOR;
+  }
+
+  /**
+   * Converts a position vector from kilometers to simulation units.
+   *
+   * @param position_km - The position vector in kilometers.
+   * @returns A new `Vector3` instance representing the position in simulation units.
+   */
+  public static toSimulationVector(position_km: Vector3): Vector3 {
+    return position_km.scale(this.SCALE_FACTOR);
+  }
+}
 
 /**
  * The main canvas element.
@@ -43,17 +76,21 @@ const engine = new Engine(canvas, true);
  */
 const createScene = (): Scene => {
   const scene = new Scene(engine);
-  scene.debugLayer.show({ overlay: false });
+  //scene.debugLayer.show({ overlay: false });
   scene.clearColor.set(0, 0, 0, 1);
 
   // Création d'une FreeCamera à la position souhaitée
-  const camera = new FreeCamera("freeCamera", new Vector3(0, 1, -5), scene);
+  const camera = new FreeCamera(
+    "freeCamera",
+    ScaleManager.toSimulationVector(new Vector3(0, 0, -424_500)),
+    scene
+  );
 
   // Orienter la caméra vers le centre de la scène
   camera.setTarget(Vector3.Zero());
-
-  // Attacher les contrôles sur le canvas
   camera.attachControl(canvas, true);
+  camera.minZ = 0.01;
+  camera.maxZ = 100_000_000_000;
 
   // Définir les touches de déplacement pour un clavier AZERT (zqsd)
   camera.keysUp = [90]; // touche Z pour avancer
@@ -62,19 +99,23 @@ const createScene = (): Scene => {
   camera.keysRight = [68]; // touche D pour aller à droite
 
   // (Optionnel) Ajuster la vitesse de déplacement
-  camera.speed = 0.025;
+  camera.speed = 0.05;
 
-  // Create a skybox using an HDR cube texture
-  const environmentMap = new HDRCubeTexture(
-    "https://bpodwinski.github.io/Ray-Marching-Babylon.js/starmap_2020_4k.hdr",
-    scene,
-    1024
-  );
-  scene.createDefaultSkybox(environmentMap, true, 1000);
-  scene.environmentTexture = environmentMap;
+  // Add Skybox
+  const skybox = MeshBuilder.CreateBox("skyBox", { size: 1000 }, scene);
+  const skyboxMaterial = new StandardMaterial("skyBox", scene);
+
+  skyboxMaterial.backFaceCulling = false;
+  skyboxMaterial.disableLighting = true;
+  skybox.material = skyboxMaterial;
+  skybox.infiniteDistance = true;
+  skyboxMaterial.disableLighting = true;
+
+  skyboxMaterial.reflectionTexture = new CubeTexture("textures/skybox", scene);
+  skyboxMaterial.reflectionTexture.coordinatesMode = Texture.SKYBOX_MODE;
 
   // Create a "star" mesh (a small sphere) positioned at the origin
-  const sphereRadius = 8;
+  const sphereRadius = ScaleManager.toSimulationUnits(696_342);
   const sphere = MeshBuilder.CreateSphere(
     "star",
     { diameter: sphereRadius },
@@ -83,9 +124,7 @@ const createScene = (): Scene => {
   sphere.position = new Vector3(0, 0, 0);
   const sphereMaterial = new StandardMaterial("sphereMat", scene);
   sphereMaterial.diffuseColor = new Color3(1, 1, 1);
-  sphereMaterial.alpha = 0.0;
-
-  // Assigner le matériau à la sphère
+  sphereMaterial.alpha = 0;
   sphere.material = sphereMaterial;
 
   // Update collision detection on every frame
@@ -124,7 +163,7 @@ const createScene = (): Scene => {
   // Set uniforms for the post-process
   postProcess.onApply = (effect) => {
     effect.setVector2("resolution", new Vector2(canvas.width, canvas.height));
-    effect.setFloat("time", performance.now() * 0.0005);
+    effect.setFloat("time", performance.now() * 0.0003);
     effect.setVector3("cameraPosition", camera.position);
     effect.setVector3("spherePosition", sphere.position);
     effect.setFloat(

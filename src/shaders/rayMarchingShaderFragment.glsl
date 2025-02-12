@@ -97,8 +97,8 @@ float noise(vec3 x) {
 // Fractal Brownian Motion (FBM) function
 float fbm(vec3 p) {
     float total = 0.0;
-    float amplitude = 0.5;
-    float frequency = 20.0;
+    float amplitude = 0.1;
+    float frequency = 5.0;
     const int octaves = 5;
     for(int i = 0; i < octaves; i++) {
         total += amplitude * noise(p * frequency);
@@ -134,7 +134,7 @@ float sdfSphere(vec3 p, vec3 sphereCenter, float radius) {
     //float displacement = fbm((p - sphereCenter) * 3.0 - radialDir * time) * 0.25;
     //float displacement = cellularNoise((p - sphereCenter) * 20.0 - radialDir * time) * 0.07;
 
-    float displacement = smoothstep(0.0, 0.65, cellularNoise((p - sphereCenter) * 40.0 - radialDir * (time * 0.75))) * 0.05;
+    float displacement = smoothstep(0.05, 0.55, cellularNoise((p - sphereCenter) * 10.0 - radialDir * time)) * 0.05;
 
     return baseDist + displacement;
 }
@@ -173,16 +173,16 @@ vec4 computeVolumetricColor(vec3 ro, vec3 rd) {
     vec3 tc = vec3(0.0); // Accumulateur de couleur (densité)
 
     for(int i = 0; i < 32; i++) {
-        if(td > (1.5 - 1.0 / 200.0) || d < 0.001 * t || t > 1000.0)
+        if(td > (1.5 - 1.0 / 200.0) || d < 0.000001 * t || t > 100000.0)
             break;
         vec3 p = ro + t * rd;
-        d = sdfSphere(p, spherePosition, sphereRadius);
+        d = sdfSphere(p, spherePosition, sphereRadius * 1.4);
         ld = (h - d) * step(d, h);
         w = (1.4 - td) * ld;
         tc += w * w + 1.0 / 50.0;
         td += w + 1.0 / 200.0;
         d = max(d, 0.05);
-        t += d * 0.6;
+        t += d * 0.5;
     }
     vec3 volColor = firePalette(tc.x);
     float alpha = clamp(td, 0.0, 1.0);
