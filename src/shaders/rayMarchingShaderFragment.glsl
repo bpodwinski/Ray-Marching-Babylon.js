@@ -124,8 +124,9 @@ float sdfSphere(vec3 p, vec3 sphereCenter, float radius) {
 
 // Fire palette function to map density to a fire-like color.
 vec3 firePalette(float i) {
-    float T = 1400.0 + 1200.0 * i; // Temperature range in Kelvin
-    vec3 L = vec3(7.4, 5.6, 4.4);   // Wavelengths for R, G, B (scaled)
+    float T = 1400.0 + 1200.0 * (1.5 - i); // Temperature range in Kelvin
+    vec3 L = vec3(6.4, 5.6, 4.4);   // Wavelengths for R, G, B (scaled)
+
     L = pow(L, vec3(5.0)) * (exp(1.43876719683e5 / (T * L)) - 1.0);
     return 1.0 - exp(-5e8 / L);
 }

@@ -125,7 +125,7 @@ const createScene = (): Scene => {
   // Set uniforms for the post-process
   postProcess.onApply = (effect) => {
     effect.setVector2("resolution", new Vector2(canvas.width, canvas.height));
-    effect.setFloat("time", performance.now() * 0.001);
+    effect.setFloat("time", performance.now() * 0.0005);
     effect.setVector3("cameraPosition", camera.position);
     effect.setVector3("spherePosition", sphere.position);
     effect.setFloat(
