@@ -11,6 +11,8 @@ import {
   Matrix,
   DepthRenderer,
   HDRCubeTexture,
+  StandardMaterial,
+  Color3,
 } from "@babylonjs/core";
 
 import "@babylonjs/core/Debug/debugLayer";
@@ -48,7 +50,7 @@ const createScene = (): Scene => {
     "camera",
     Math.PI / 4,
     Math.PI / 4,
-    1.75,
+    10,
     new Vector3(0, 0, 0),
     scene
   );
@@ -59,19 +61,25 @@ const createScene = (): Scene => {
   const environmentMap = new HDRCubeTexture(
     "https://bpodwinski.github.io/Ray-Marching-Babylon.js/starmap_2020_4k.hdr",
     scene,
-    512
+    1024
   );
   scene.createDefaultSkybox(environmentMap, true, 1000);
   scene.environmentTexture = environmentMap;
 
   // Create a "star" mesh (a small sphere) positioned at the origin
-  const sphereRadius = 1;
+  const sphereRadius = 8;
   const sphere = MeshBuilder.CreateSphere(
     "star",
     { diameter: sphereRadius },
     scene
   );
   sphere.position = new Vector3(0, 0, 0);
+  const sphereMaterial = new StandardMaterial("sphereMat", scene);
+  sphereMaterial.diffuseColor = new Color3(1, 1, 1);
+  sphereMaterial.alpha = 0.0;
+
+  // Assigner le matériau à la sphère
+  sphere.material = sphereMaterial;
 
   // Update collision detection on every frame
   scene.onBeforeRenderObservable.add(() => {

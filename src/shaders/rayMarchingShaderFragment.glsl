@@ -52,7 +52,7 @@ float noise(vec3 x) {
 float fbm(vec3 p) {
     float total = 0.0;
     float amplitude = 0.5;
-    float frequency = 10.0;
+    float frequency = 20.0;
     const int octaves = 5;
     for(int i = 0; i < octaves; i++) {
         total += amplitude * noise(p * frequency);
@@ -66,16 +66,12 @@ float fbm(vec3 p) {
 // Utility Functions
 // ----------------------
 
-/**
- * @brief Remaps a value from one range to another.
- */
+// Remaps a value from one range to another.
 float remap(float value, float min1, float max1, float min2, float max2) {
     return min2 + (value - min1) * (max2 - min2) / (max1 - min1);
 }
 
-/**
- * @brief Computes the world-space position from UV coordinates and an arbitrary depth.
- */
+// Computes the world-space position from UV coordinates and an arbitrary depth.
 vec3 worldFromUV(vec2 UV, float depth) {
     vec4 ndc = vec4(UV * 2.0 - 1.0, 0.0, 1.0);
     vec4 posVS = inverseProjection * ndc;
@@ -84,55 +80,76 @@ vec3 worldFromUV(vec2 UV, float depth) {
     return posWS.xyz;
 }
 
-/**
- * @brief Signed Distance Function (SDF) for a sphere with FBM noise.
- */
+// SDF for a sphere with FBM noise displacement.
 float sdfSphere(vec3 p, vec3 sphereCenter, float radius) {
     float baseDist = length(p - sphereCenter) - radius * 0.5;
-    float displacement = fbm(p * 2.0 + time) * 0.1;
+    float displacement = fbm(p * -3.0 + time) * 0.25;
     return baseDist + displacement;
 }
 
-/**
- * @brief Ray marches to detect a sphere intersection.
- */
-float rayMarch(vec3 ro, vec3 rd) {
-    float t = 0.0;
-    const int steps = 100;
-    const float maxDistance = 1000.0;
-    const float hitThreshold = 0.1;
-
-    for(int i = 0; i < steps; i++) {
-        vec3 p = ro + t * rd;
-        float d = sdfSphere(p, spherePosition, sphereRadius);
-        if(d < hitThreshold) {
-            return t;
-        }
-        t += d;
-        if(t > maxDistance)
-            break;
-    }
-    return -1.0;
+// Fire palette function to map density to a fire-like color.
+vec3 firePalette(float i) {
+    float T = 1300.0 + 1300.0 * i; // Temperature range in Kelvin
+    vec3 L = vec3(7.4, 5.6, 4.4);   // Wavelengths for R, G, B (scaled)
+    L = pow(L, vec3(5.0)) * (exp(1.43876719683e5 / (T * L)) - 1.0);
+    return 1.0 - exp(-5e8 / L);
 }
 
-/**
- * @brief Main fragment shader entry point.
- */
+// --------------------------------------------------------------------
+// Function: computeVolumetricColor
+// Effectue le raymarching volumétrique et renvoie un vec4
+// dont rgb = couleur volumétrique et a = alpha (facteur de mélange).
+// --------------------------------------------------------------------
+vec4 computeVolumetricColor(vec3 ro, vec3 rd) {
+    float t = 0.0;      // Distance parcourue le long du rayon
+    float ld = 0.0;     // Densité locale
+    float td = 0.0;     // Densité totale accumulée
+    float w = 0.0;      // Facteur de pondération
+    float d = 1.0;      // Pas de distance issu de la SDF
+    const float h = 0.1;// Seuil pour l'accumulation
+    vec3 tc = vec3(0.0); // Accumulateur de couleur (densité)
+
+    for(int i = 0; i < 64; i++) {
+        if(td > (1.0 - 1.0 / 200.0) || d < 0.0001 * t || t > 100.0)
+            break;
+        vec3 p = ro + t * rd;
+        d = sdfSphere(p, spherePosition, sphereRadius);
+        ld = (h - d) * step(d, h);
+        w = (1.0 - td) * ld;
+        tc += w * w + 1.0 / 50.0;
+        td += w + 1.0 / 200.0;
+        d = max(d, 0.02);
+        t += d * 0.5;
+    }
+    vec3 volColor = firePalette(tc.x);
+    float alpha = clamp(td, 0.0, 1.0);
+    return vec4(volColor, alpha);
+}
+
+// ----------------------
+// Main fragment shader entry point
+// ----------------------
 void main() {
+    // Calcul des coordonnées UV
     vec2 uv = gl_FragCoord.xy / resolution.xy;
+
+    // Récupération de la couleur de la scène (arrière-plan) depuis la texture
     vec3 sceneColor = texture2D(textureSampler, uv).rgb;
+
+    // Conversion des UV en position dans l'espace monde
     vec3 worldPos = worldFromUV(uv, 1.0);
+
+    // Calcul de la direction du rayon depuis la caméra
     vec3 rd = normalize(worldPos - cameraPosition);
     vec3 ro = cameraPosition;
 
-    float t = rayMarch(ro, rd);
+    // Appel de la fonction de raymarching volumétrique
+    vec4 volData = computeVolumetricColor(ro, rd);
+    vec3 volumetricColor = volData.rgb;
+    float alpha = volData.a;
 
-    vec3 effectColor = sceneColor;
-    if(t > 0.0) {
-        effectColor = vec3(1.0, 0.9, 0.0);
-    } else {
-        effectColor = sceneColor;
-    }
+    // Mélange de la couleur de la scène et de l'effet volumétrique
+    vec3 finalColor = mix(sceneColor, volumetricColor, alpha);
 
-    gl_FragColor = vec4(effectColor, 1.0);
+    gl_FragColor = vec4(finalColor, 1.0);
 }
