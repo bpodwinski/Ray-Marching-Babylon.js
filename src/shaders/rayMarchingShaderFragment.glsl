@@ -173,17 +173,18 @@ vec4 computeVolumetricColor(vec3 ro, vec3 rd) {
     vec3 tc = vec3(0.0); // Accumulateur de couleur (densité)
 
     for(int i = 0; i < 32; i++) {
-        if(td > (1.5 - 1.0 / 200.0) || d < 0.000001 * t || t > 100000.0)
+        if(td > 2.0 || d < 0.000001 * t || t > 10000.0)
             break;
         vec3 p = ro + t * rd;
-        d = sdfSphere(p, spherePosition, sphereRadius * 1.4);
+        d = sdfSphere(p, spherePosition, sphereRadius * 1.18);
         ld = (h - d) * step(d, h);
         w = (1.4 - td) * ld;
         tc += w * w + 1.0 / 50.0;
         td += w + 1.0 / 200.0;
-        d = max(d, 0.05);
-        t += d * 0.5;
+        d = max(d, 0.01);
+        t += d * 0.95;
     }
+
     vec3 volColor = firePalette(tc.x);
     float alpha = clamp(td, 0.0, 1.0);
     return vec4(volColor, alpha);
@@ -196,23 +197,36 @@ void main() {
     // Calcul des coordonnées UV
     vec2 uv = gl_FragCoord.xy / resolution.xy;
 
-    // Récupération de la couleur de la scène (arrière-plan) depuis la texture
+    // Récupération de la couleur de la scène (arrière-plan)
     vec3 sceneColor = texture2D(textureSampler, uv).rgb;
 
-    // Conversion des UV en position dans l'espace monde
+    // Conversion des UV en position dans l'espace monde (attention: ici "1.0" est une profondeur arbitraire)
     vec3 worldPos = worldFromUV(uv, 1.0);
 
     // Calcul de la direction du rayon depuis la caméra
     vec3 rd = normalize(worldPos - cameraPosition);
     vec3 ro = cameraPosition;
 
-    // Appel de la fonction de raymarching volumétrique
+    // Appel du raymarching volumétrique
     vec4 volData = computeVolumetricColor(ro, rd);
     vec3 volumetricColor = volData.rgb;
     float alpha = volData.a;
 
-    // Mélange de la couleur de la scène et de l'effet volumétrique
-    vec3 finalColor = mix(sceneColor, volumetricColor, alpha);
+    // Utilisation du depthSampler
+    float sceneDepthNorm = texture2D(depthSampler, uv).r;
+    // Linéarisation de la profondeur (supposant que la profondeur est stockée entre 0 et 1)
+    float sceneDepth = remap(sceneDepthNorm, 0.0, 1.0, cameraNear, cameraFar);
 
+    // Estimation de la distance depuis la caméra jusqu'au point courant (approximatif)
+    float rayDepth = length(worldPos - cameraPosition);
+
+    // Création d'un masque : on veut réduire l'effet volumétrique (alpha) si le point raymarché est derrière la géométrie de la scène.
+    // Par exemple, si rayDepth dépasse sceneDepth, le masque tend vers 0.
+    float depthMask = smoothstep(sceneDepth - 100.0, sceneDepth + 100.0, rayDepth);
+    // On multiplie l'alpha de l'effet volumétrique par ce masque.
+    alpha *= depthMask;
+
+    // Composition finale : mélange de la scène et de l'effet volumétrique
+    vec3 finalColor = mix(sceneColor, volumetricColor, alpha);
     gl_FragColor = vec4(finalColor, 1.0);
 }
