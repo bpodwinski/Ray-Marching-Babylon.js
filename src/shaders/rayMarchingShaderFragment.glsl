@@ -14,6 +14,37 @@ uniform sampler2D depthSampler;        // Depth texture sampler
 uniform sampler2D textureSampler;      // Original scene texture sampler
 
 // ----------------------
+// Cellular Noise
+// ----------------------
+
+vec3 hash3(vec3 p) {
+    p = vec3(dot(p, vec3(127.1, 311.7, 74.7)), dot(p, vec3(269.5, 183.3, 246.1)), dot(p, vec3(113.5, 271.9, 124.6)));
+    return fract(sin(p) * 43758.5453);
+}
+
+float cellularNoise(vec3 P) {
+    vec3 Pi = floor(P);
+    vec3 Pf = fract(P);
+    float F1 = 1.0; // On va chercher la distance minimale
+
+    // Parcourir les cellules voisines (3x3x3)
+    for(int xi = -1; xi <= 1; xi++) {
+        for(int yi = -1; yi <= 1; yi++) {
+            for(int zi = -1; zi <= 1; zi++) {
+                vec3 offset = vec3(float(xi), float(yi), float(zi));
+                // Obtenir le point caractéristique aléatoire de la cellule
+                vec3 cellPoint = hash3(Pi + offset);
+                // Calculer la distance entre notre point et le point caractéristique
+                vec3 diff = offset + cellPoint - Pf;
+                float d = length(diff);
+                F1 = min(F1, d);
+            }
+        }
+    }
+    return F1;
+}
+
+// ----------------------
 // Noise and FBM functions
 // ----------------------
 
@@ -83,14 +114,17 @@ vec3 worldFromUV(vec2 UV, float depth) {
 // SDF for a sphere with FBM noise displacement.
 float sdfSphere(vec3 p, vec3 sphereCenter, float radius) {
     float baseDist = length(p - sphereCenter) - radius * 0.5;
-    vec3 radialDir = normalize(p - sphereCenter); // Direction du centre vers le point
-    float displacement = fbm((p - sphereCenter) * 3.0 - radialDir * time) * 0.25;
+    vec3 radialDir = normalize(p - sphereCenter);
+
+    //float displacement = fbm((p - sphereCenter) * 3.0 - radialDir * time) * 0.25;
+    float displacement = cellularNoise((p - sphereCenter) * 20.0 - radialDir * time) * 0.07;
+
     return baseDist + displacement;
 }
 
 // Fire palette function to map density to a fire-like color.
 vec3 firePalette(float i) {
-    float T = 1300.0 + 1300.0 * i; // Temperature range in Kelvin
+    float T = 1400.0 + 1200.0 * i; // Temperature range in Kelvin
     vec3 L = vec3(7.4, 5.6, 4.4);   // Wavelengths for R, G, B (scaled)
     L = pow(L, vec3(5.0)) * (exp(1.43876719683e5 / (T * L)) - 1.0);
     return 1.0 - exp(-5e8 / L);
@@ -110,17 +144,17 @@ vec4 computeVolumetricColor(vec3 ro, vec3 rd) {
     const float h = 0.1;// Seuil pour l'accumulation
     vec3 tc = vec3(0.0); // Accumulateur de couleur (densité)
 
-    for(int i = 0; i < 64; i++) {
-        if(td > (1.0 - 1.0 / 200.0) || d < 0.0001 * t || t > 100.0)
+    for(int i = 0; i < 32; i++) {
+        if(td > (1.5 - 1.0 / 200.0) || d < 0.001 * t || t > 1000.0)
             break;
         vec3 p = ro + t * rd;
         d = sdfSphere(p, spherePosition, sphereRadius);
         ld = (h - d) * step(d, h);
-        w = (1.0 - td) * ld;
+        w = (1.4 - td) * ld;
         tc += w * w + 1.0 / 50.0;
         td += w + 1.0 / 200.0;
-        d = max(d, 0.02);
-        t += d * 0.5;
+        d = max(d, 0.05);
+        t += d * 0.6;
     }
     vec3 volColor = firePalette(tc.x);
     float alpha = clamp(td, 0.0, 1.0);

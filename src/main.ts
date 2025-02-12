@@ -13,6 +13,7 @@ import {
   HDRCubeTexture,
   StandardMaterial,
   Color3,
+  FreeCamera,
 } from "@babylonjs/core";
 
 import "@babylonjs/core/Debug/debugLayer";
@@ -46,16 +47,23 @@ const createScene = (): Scene => {
   scene.debugLayer.show({ overlay: false });
   scene.clearColor.set(0, 0, 0, 1);
 
-  const camera = new ArcRotateCamera(
-    "camera",
-    Math.PI / 4,
-    Math.PI / 4,
-    10,
-    new Vector3(0, 0, 0),
-    scene
-  );
+  // Création d'une FreeCamera à la position souhaitée
+  const camera = new FreeCamera("freeCamera", new Vector3(0, 2, -10), scene);
+
+  // Orienter la caméra vers le centre de la scène
+  camera.setTarget(Vector3.Zero());
+
+  // Attacher les contrôles sur le canvas
   camera.attachControl(canvas, true);
-  camera.wheelDeltaPercentage = 0.005;
+
+  // Définir les touches de déplacement pour un clavier AZERT (zqsd)
+  camera.keysUp = [90]; // touche Z pour avancer
+  camera.keysLeft = [81]; // touche Q pour aller à gauche
+  camera.keysDown = [83]; // touche S pour reculer
+  camera.keysRight = [68]; // touche D pour aller à droite
+
+  // (Optionnel) Ajuster la vitesse de déplacement
+  camera.speed = 0.05;
 
   // Create a skybox using an HDR cube texture
   // const environmentMap = new HDRCubeTexture(
