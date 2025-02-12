@@ -64,9 +64,13 @@ const createScene = (): Scene => {
   scene.environmentTexture = environmentMap;
 
   // Create a "star" mesh (a small sphere) positioned at the origin
-  const cubeSize = 1;
-  const cube = MeshBuilder.CreateBox("star", { size: cubeSize }, scene);
-  cube.position = new Vector3(0, 0, 0);
+  const sphereRadius = 1;
+  const sphere = MeshBuilder.CreateSphere(
+    "star",
+    { diameter: sphereRadius },
+    scene
+  );
+  sphere.position = new Vector3(0, 0, 0);
 
   // Variable to hold the collision state for the shader
   let collisionDetected = 0.0;
@@ -79,7 +83,7 @@ const createScene = (): Scene => {
     const ray = new Ray(currentOrigin, currentDirection, 1000);
 
     // Set collisionDetected to 1.0 if the ray intersects the star; otherwise 0.0
-    collisionDetected = ray.intersectsMesh(cube, true) ? 1.0 : 0.0;
+    collisionDetected = ray.intersectsMesh(sphere, true) ? 1.0 : 0.0;
   });
 
   // Create a post-process for ray marching using the custom shader
@@ -91,8 +95,8 @@ const createScene = (): Scene => {
       "time",
       "collisionDetected",
       "cameraPosition",
-      "cubePosition",
-      "cubeSize",
+      "spherePosition",
+      "sphereRadius",
       "inverseProjection",
       "inverseView",
       "cameraNear",
@@ -114,10 +118,10 @@ const createScene = (): Scene => {
     effect.setFloat("time", performance.now() * 0.001);
     effect.setFloat("collisionDetected", collisionDetected);
     effect.setVector3("cameraPosition", camera.position);
-    effect.setVector3("cubePosition", cube.position);
-    effect.setVector3(
-      "cubeSize",
-      cube.getBoundingInfo().boundingBox.extendSize
+    effect.setVector3("spherePosition", sphere.position);
+    effect.setFloat(
+      "sphereRadius",
+      sphere.getBoundingInfo().boundingSphere.radius
     );
     effect.setMatrix(
       "inverseProjection",

@@ -15,8 +15,8 @@ uniform vec2 resolution;               // Screen resolution (width, height)
 uniform float time;                    // Time in seconds (for dynamic effects)
 uniform float collisionDetected;       // Collision flag (1.0 if collision detected, 0.0 otherwise)
 uniform vec3 cameraPosition;           // Camera world position
-uniform vec3 cubePosition;             // SDF object's position (used here as the sphere's center)
-uniform vec3 cubeSize;             // SDF object's position (used here as the sphere's center)
+uniform vec3 spherePosition;           // SDF object's position (used here as the sphere's center)
+uniform float sphereRadius;
 uniform mat4 inverseProjection;        // Inverse of the camera's projection matrix
 uniform mat4 inverseView;              // Inverse of the camera's view matrix
 uniform float cameraNear;              // Near clipping plane distance
@@ -65,52 +65,6 @@ vec3 worldFromUV(vec2 UV, float depth) {
 }
 
 /**
- * @brief Génère un bruit Worley (Voronoi Noise) en 2D.
- *
- * Ce bruit est calculé en déterminant la distance minimale entre un point donné
- * et les centres des cellules d'un grille pseudo-aléatoire.
- *
- * @param uv Les coordonnées de l'échantillon en 2D.
- * @return float La valeur du bruit (allant de 0 à 1).
- */
-float worleyNoise(vec2 uv) {
-    vec2 p = floor(uv);  // Coordonnée de la cellule
-    vec2 f = fract(uv);  // Position relative dans la cellule
-
-    float minDist = 1.0; // Distance minimale initialisée à une grande valeur
-
-    // Parcourt les 9 cellules voisines
-    for(int i = -1; i <= 1; i++) {
-        for(int j = -1; j <= 1; j++) {
-            vec2 neighbor = vec2(float(i), float(j));
-            vec2 point = p + neighbor + vec2(fract(sin(dot(p + neighbor, vec2(127.1, 311.7))) * 43758.5453), fract(sin(dot(p + neighbor, vec2(269.5, 183.3))) * 43758.5453)); // Génération de pseudo-aléatoire
-
-            float dist = length(point - (p + f)); // Calcul de la distance
-
-            minDist = min(minDist, dist); // Mise à jour de la distance minimale
-        }
-    }
-
-    return minDist; // Retourne la distance normalisée
-}
-
-/**
- * @brief Signed Distance Function (SDF) for a box.
- *
- * Computes the signed distance from point p to a box centered at boxCenter
- * with half-dimensions b.
- *
- * @param p The point in space.
- * @param boxCenter La position du centre du cube.
- * @param b Les demi-dimensions du cube.
- * @return float La distance signée au cube.
- */
-float sdfBox(vec3 p, vec3 boxCenter, vec3 b) {
-    vec3 d = abs(p - boxCenter) - b;
-    return min(max(d.x, max(d.y, d.z)), 0.0) + length(max(d, 0.0));
-}
-
-/**
  * @brief Signed Distance Function (SDF) for a sphere.
  *
  * Computes the signed distance from point p to a sphere with center sphereCenter and radius.
@@ -121,7 +75,7 @@ float sdfBox(vec3 p, vec3 boxCenter, vec3 b) {
  * @return float The signed distance to the sphere.
  */
 float sdfSphere(vec3 p, vec3 sphereCenter, float radius) {
-    return length(p - sphereCenter) - radius;
+    return length(p - sphereCenter) - radius * 0.5;
 }
 
 /**
@@ -138,36 +92,24 @@ float sdfSphere(vec3 p, vec3 sphereCenter, float radius) {
  */
 float rayMarch(vec3 ro, vec3 rd) {
     float t = 0.0;
-    //glow = 0.0;
     bool hit = false;
-
-    // Increase for a more pronounced effect
     const int steps = 100;
-
-    // Define a threshold for glow accumulation
-    float threshold = 80.0;
+    const float maxDistance = 1000.0;
+    const float hitThreshold = 0.01;
 
     for(int i = 0; i < steps; i++) {
         vec3 p = ro + t * rd;
 
         // Compute the signed distance from point p to the sphere SDF
-        float d = sdfBox(p, cubePosition, cubeSize);
-
-        // Use smoothstep to modulate glow accumulation based on the distance d.
-        // When d is small (close to the surface), the contribution is high.
-        // When d is greater than 'threshold', the contribution smoothly goes to 0.
-        //float glowContribution = 1.0 - smoothstep(0.0, threshold, d);
-
-        // Accumulate glow contribution dynamically using time modulation
-        //glow += glowContribution * 0.2 * (1.0 + 0.3 * sin(time));
+        float d = sdfSphere(p, spherePosition, sphereRadius);
 
         // Mark hit if the distance is below a threshold (here, 50.0)
-        if(!hit && d < 0.001) {
+        if(!hit && d < hitThreshold) {
             hit = true;
         }
 
         t += d;
-        if(t > cameraFar)
+        if(t > maxDistance)
             break;
     }
     return hit ? t : -1.0;
@@ -199,14 +141,9 @@ void main() {
     float t = rayMarch(ro, rd);
 
     // Blend the glow with the original scene color
-    vec3 cubeColor = vec3(0.0, 1.0, 0.0);
     vec3 effectColor = sceneColor;
     if(t > 0.0) {
-        // Instead of sceneColor + vec3(glow), multiply glow with the desired color.
-        //effectColor = sceneColor;
-        //effectColor = clamp(effectColor, 0.0, 1.0);
-        float blendFactor = 0.5;
-        effectColor = mix(sceneColor, cubeColor, blendFactor);
+        effectColor = vec3(1.0, 0.9, 0.0);
     } else {
         effectColor = sceneColor;
     }
