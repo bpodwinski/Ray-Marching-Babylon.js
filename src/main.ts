@@ -14,6 +14,8 @@ import {
   FreeCamera,
   CubeTexture,
   Texture,
+  FresnelParameters,
+  PointLight,
 } from "@babylonjs/core";
 
 import "@babylonjs/core/Debug/debugLayer";
@@ -57,8 +59,8 @@ const createScene = (): Scene => {
   );
   camera.setTarget(Vector3.Zero());
   camera.attachControl(canvas, true);
-  camera.minZ = 0.01;
-  camera.maxZ = 100_000_000_000;
+  camera.minZ = 0.001;
+  camera.maxZ = 100_000_000_000_000;
   camera.keysUp = [90];
   camera.keysLeft = [81];
   camera.keysDown = [83];
@@ -85,9 +87,13 @@ const createScene = (): Scene => {
   );
   sphere.position = new Vector3(0, 0, 0);
   const sphereMaterial = new StandardMaterial("sphereMat", scene);
-  sphereMaterial.emissiveColor = new Color3(1, 0.55, 0.05);
-  sphereMaterial.alpha = 1;
+  sphereMaterial.emissiveColor = new Color3(1, 0.55, 0.1);
+  sphereMaterial.alpha = 0.9;
   sphere.material = sphereMaterial;
+
+  // Light
+  const sunLight = new PointLight("sun", sphere.position);
+  sunLight.intensity = 10;
 
   scene.onBeforeRenderObservable.add(() => {
     const currentOrigin = camera.position.clone();
