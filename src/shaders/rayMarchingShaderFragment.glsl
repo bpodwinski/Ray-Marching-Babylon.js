@@ -83,7 +83,8 @@ vec3 worldFromUV(vec2 UV, float depth) {
 // SDF for a sphere with FBM noise displacement.
 float sdfSphere(vec3 p, vec3 sphereCenter, float radius) {
     float baseDist = length(p - sphereCenter) - radius * 0.5;
-    float displacement = fbm(p * -3.0 + time) * 0.25;
+    vec3 radialDir = normalize(p - sphereCenter); // Direction du centre vers le point
+    float displacement = fbm((p - sphereCenter) * 3.0 - radialDir * time) * 0.25;
     return baseDist + displacement;
 }
 

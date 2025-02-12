@@ -58,13 +58,13 @@ const createScene = (): Scene => {
   camera.wheelDeltaPercentage = 0.005;
 
   // Create a skybox using an HDR cube texture
-  const environmentMap = new HDRCubeTexture(
-    "https://bpodwinski.github.io/Ray-Marching-Babylon.js/starmap_2020_4k.hdr",
-    scene,
-    1024
-  );
-  scene.createDefaultSkybox(environmentMap, true, 1000);
-  scene.environmentTexture = environmentMap;
+  // const environmentMap = new HDRCubeTexture(
+  //   "https://bpodwinski.github.io/Ray-Marching-Babylon.js/starmap_2020_4k.hdr",
+  //   scene,
+  //   1024
+  // );
+  // scene.createDefaultSkybox(environmentMap, true, 1000);
+  // scene.environmentTexture = environmentMap;
 
   // Create a "star" mesh (a small sphere) positioned at the origin
   const sphereRadius = 8;
