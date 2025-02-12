@@ -48,11 +48,12 @@ const createScene = (): Scene => {
     "camera",
     Math.PI / 4,
     Math.PI / 4,
-    5,
+    1.75,
     new Vector3(0, 0, 0),
     scene
   );
   camera.attachControl(canvas, true);
+  camera.wheelDeltaPercentage = 0.005;
 
   // Create a skybox using an HDR cube texture
   const environmentMap = new HDRCubeTexture(
