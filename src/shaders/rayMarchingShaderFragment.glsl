@@ -26,22 +26,37 @@ float cellularNoise(vec3 P) {
     vec3 Pi = floor(P);
     vec3 Pf = fract(P);
     float F1 = 1.0; // On va chercher la distance minimale
+    float F2 = 1.0;
 
     // Parcourir les cellules voisines (3x3x3)
     for(int xi = -1; xi <= 1; xi++) {
         for(int yi = -1; yi <= 1; yi++) {
             for(int zi = -1; zi <= 1; zi++) {
                 vec3 offset = vec3(float(xi), float(yi), float(zi));
+
                 // Obtenir le point caractéristique aléatoire de la cellule
                 vec3 cellPoint = hash3(Pi + offset);
+
                 // Calculer la distance entre notre point et le point caractéristique
                 vec3 diff = offset + cellPoint - Pf;
+
                 float d = length(diff);
-                F1 = min(F1, d);
+
+                //F1 = min(F1, d);
+
+                if(d < F1) {
+                    F2 = F1;
+                    F1 = d;
+                } else if(d < F2) {
+                    F2 = d;
+                }
             }
         }
     }
-    return F1;
+    //return F1;
+
+    // La différence F2 - F1 tend à marquer les bords des cellules
+    return F2 - F1;
 }
 
 // ----------------------
@@ -117,16 +132,28 @@ float sdfSphere(vec3 p, vec3 sphereCenter, float radius) {
     vec3 radialDir = normalize(p - sphereCenter);
 
     //float displacement = fbm((p - sphereCenter) * 3.0 - radialDir * time) * 0.25;
-    float displacement = cellularNoise((p - sphereCenter) * 20.0 - radialDir * time) * 0.07;
+    //float displacement = cellularNoise((p - sphereCenter) * 20.0 - radialDir * time) * 0.07;
+
+    float displacement = smoothstep(0.0, 0.65, cellularNoise((p - sphereCenter) * 40.0 - radialDir * (time * 0.75))) * 0.05;
 
     return baseDist + displacement;
 }
 
 // Fire palette function to map density to a fire-like color.
-vec3 firePalette(float i) {
-    float T = 1400.0 + 1200.0 * (1.5 - i); // Temperature range in Kelvin
-    vec3 L = vec3(6.4, 5.6, 4.4);   // Wavelengths for R, G, B (scaled)
+// vec3 firePalette(float i) {
+//     float T = 1400.0 + 1200.0 * i; // Temperature range in Kelvin
+//     vec3 L = vec3(7.4, 5.6, 4.4);   // Wavelengths for R, G, B (scaled)
 
+//     L = pow(L, vec3(5.0)) * (exp(1.43876719683e5 / (T * L)) - 1.0);
+//     return 1.0 - exp(-5e8 / L);
+// }
+
+vec3 firePalette(float i) {
+    // Inverser et remapper i non linéairement pour accentuer la différence
+    float t = pow(0.1 + i, 2.0);  // Plus i est faible (centre), plus t est élevé
+    // Ici, T varie de 1400K à 2600K en fonction de t
+    float T = 1400.0 + 1200.0 * t;
+    vec3 L = vec3(7.4, 5.6, 4.4);
     L = pow(L, vec3(5.0)) * (exp(1.43876719683e5 / (T * L)) - 1.0);
     return 1.0 - exp(-5e8 / L);
 }

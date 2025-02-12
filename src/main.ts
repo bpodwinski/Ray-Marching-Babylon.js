@@ -1,7 +1,6 @@
 import {
   Engine,
   Scene,
-  ArcRotateCamera,
   Vector3,
   MeshBuilder,
   PostProcess,
@@ -48,7 +47,7 @@ const createScene = (): Scene => {
   scene.clearColor.set(0, 0, 0, 1);
 
   // Création d'une FreeCamera à la position souhaitée
-  const camera = new FreeCamera("freeCamera", new Vector3(0, 2, -10), scene);
+  const camera = new FreeCamera("freeCamera", new Vector3(0, 1, -5), scene);
 
   // Orienter la caméra vers le centre de la scène
   camera.setTarget(Vector3.Zero());
@@ -63,16 +62,16 @@ const createScene = (): Scene => {
   camera.keysRight = [68]; // touche D pour aller à droite
 
   // (Optionnel) Ajuster la vitesse de déplacement
-  camera.speed = 0.05;
+  camera.speed = 0.025;
 
   // Create a skybox using an HDR cube texture
-  // const environmentMap = new HDRCubeTexture(
-  //   "https://bpodwinski.github.io/Ray-Marching-Babylon.js/starmap_2020_4k.hdr",
-  //   scene,
-  //   1024
-  // );
-  // scene.createDefaultSkybox(environmentMap, true, 1000);
-  // scene.environmentTexture = environmentMap;
+  const environmentMap = new HDRCubeTexture(
+    "https://bpodwinski.github.io/Ray-Marching-Babylon.js/starmap_2020_4k.hdr",
+    scene,
+    1024
+  );
+  scene.createDefaultSkybox(environmentMap, true, 1000);
+  scene.environmentTexture = environmentMap;
 
   // Create a "star" mesh (a small sphere) positioned at the origin
   const sphereRadius = 8;
