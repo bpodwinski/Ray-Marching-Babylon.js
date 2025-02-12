@@ -79,40 +79,36 @@ float sdfSphere(vec3 p, vec3 sphereCenter, float radius) {
 }
 
 /**
- * @brief Performs ray marching and accumulates a dynamic volumetric glow.
+ * @brief Ray marches to detect a sphere intersection.
  *
- * Marches a ray from the origin (ro) in direction (rd), computes the SDF for a sphere
- * centered at cubePosition with radius 1.0, and accumulates a glow effect based on
- * the distance to the surface. The glow intensity is modulated by time.
+ * Marches a ray from origin (ro) along the normalized direction (rd) and computes the sphere's SDF.
+ * Returns the ray distance when the SDF falls below the hit threshold, or -1.0 if no intersection occurs.
  *
- * @param ro The ray origin.
+ * @param ro The ray origin in world space.
  * @param rd The normalized ray direction.
- * @param glow Output parameter that accumulates the glow value.
- * @return float The distance along the ray if an intersection is detected; otherwise, -1.0.
+ * @return float The distance to the intersection, or -1.0 if none.
  */
+
 float rayMarch(vec3 ro, vec3 rd) {
-    float t = 0.0;
-    bool hit = false;
-    const int steps = 100;
-    const float maxDistance = 1000.0;
-    const float hitThreshold = 0.01;
+    float t = 0.0; // Current distance traveled along the ray
+    const int steps = 100; // Maximum number of iterations/steps
+    const float maxDistance = 1000.0; // Maximum distance to march before giving up
+    const float hitThreshold = 0.05; // Distance threshold to consider the ray as hitting the surface
 
     for(int i = 0; i < steps; i++) {
         vec3 p = ro + t * rd;
 
-        // Compute the signed distance from point p to the sphere SDF
         float d = sdfSphere(p, spherePosition, sphereRadius);
 
-        // Mark hit if the distance is below a threshold (here, 50.0)
-        if(!hit && d < hitThreshold) {
-            hit = true;
+        if(d < hitThreshold) {
+            return t;
         }
 
         t += d;
         if(t > maxDistance)
             break;
     }
-    return hit ? t : -1.0;
+    return -1.0;
 }
 
 /**
