@@ -3,7 +3,6 @@ precision highp float;
 // Uniforms
 uniform vec2 resolution;               // Screen resolution (width, height)
 uniform float time;                    // Time in seconds (for dynamic effects)
-uniform float collisionDetected;       // Collision flag (1.0 if collision detected, 0.0 otherwise)
 uniform vec3 cameraPosition;           // Camera world position
 uniform vec3 spherePosition;           // Sphere center position (used in the SDF)
 uniform float sphereRadius;            // Radius of the sphere used in the SDF
@@ -82,7 +81,7 @@ float rayMarch(vec3 ro, vec3 rd) {
     float t = 0.0; // Current distance traveled along the ray
     const int steps = 100; // Maximum number of iterations/steps
     const float maxDistance = 1000.0; // Maximum distance to march before giving up
-    const float hitThreshold = 0.05; // Distance threshold to consider the ray as hitting the surface
+    const float hitThreshold = 0.08; // Distance threshold to consider the ray as hitting the surface
 
     for(int i = 0; i < steps; i++) {
         vec3 p = ro + t * rd;

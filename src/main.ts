@@ -72,18 +72,12 @@ const createScene = (): Scene => {
   );
   sphere.position = new Vector3(0, 0, 0);
 
-  // Variable to hold the collision state for the shader
-  let collisionDetected = 0.0;
-
   // Update collision detection on every frame
   scene.onBeforeRenderObservable.add(() => {
     // Recalculate the current camera origin and direction
     const currentOrigin = camera.position.clone();
     const currentDirection = camera.getForwardRay().direction.clone();
     const ray = new Ray(currentOrigin, currentDirection, 1000);
-
-    // Set collisionDetected to 1.0 if the ray intersects the star; otherwise 0.0
-    collisionDetected = ray.intersectsMesh(sphere, true) ? 1.0 : 0.0;
   });
 
   // Create a post-process for ray marching using the custom shader
@@ -93,7 +87,6 @@ const createScene = (): Scene => {
     [
       "resolution",
       "time",
-      "collisionDetected",
       "cameraPosition",
       "spherePosition",
       "sphereRadius",
@@ -116,7 +109,6 @@ const createScene = (): Scene => {
   postProcess.onApply = (effect) => {
     effect.setVector2("resolution", new Vector2(canvas.width, canvas.height));
     effect.setFloat("time", performance.now() * 0.001);
-    effect.setFloat("collisionDetected", collisionDetected);
     effect.setVector3("cameraPosition", camera.position);
     effect.setVector3("spherePosition", sphere.position);
     effect.setFloat(
