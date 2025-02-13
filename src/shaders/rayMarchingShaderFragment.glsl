@@ -163,7 +163,7 @@ vec3 firePalette(float i) {
 // Effectue le raymarching volumétrique et renvoie un vec4
 // dont rgb = couleur volumétrique et a = alpha (facteur de mélange).
 // --------------------------------------------------------------------
-vec4 computeVolumetricColor(vec3 ro, vec3 rd, out float glow) {
+vec4 computeVolumetricColor(vec3 ro, vec3 rd) {
     float t = 0.0;      // Distance parcourue le long du rayon
     float ld = 0.0;     // Densité locale
     float td = 0.0;     // Densité totale accumulée
@@ -171,7 +171,6 @@ vec4 computeVolumetricColor(vec3 ro, vec3 rd, out float glow) {
     float d = 1.0;      // Pas de distance issu de la SDF
     const float h = 0.1;// Seuil pour l'accumulation
     vec3 tc = vec3(0.0); // Accumulateur de couleur (densité)
-    glow = 0.0;
 
     for(int i = 0; i < 32; i++) {
         if(td > 2.0 || d < 0.000001 * t || t > 10000.0)
@@ -184,10 +183,6 @@ vec4 computeVolumetricColor(vec3 ro, vec3 rd, out float glow) {
         td += w + 1.0 / 200.0;
         d = max(d, 0.01);
         t += d * 0.95;
-
-        // Plus d est petit (proche de la surface), plus la contribution de glow est forte.
-        //float glowContribution = 1.0 - smoothstep(0.0, 1.0, d);
-        //glow += glowContribution * 0.001;
     }
 
     vec3 volColor = firePalette(tc.x);
@@ -212,17 +207,11 @@ void main() {
     vec3 rd = normalize(worldPos - cameraPosition);
     vec3 ro = cameraPosition;
 
-    // Appel du raymarching volumétrique qui renvoie aussi la valeur de glow
-    float glow;
-    vec4 volData = computeVolumetricColor(ro, rd, glow);
+    vec4 volData = computeVolumetricColor(ro, rd);
     vec3 volumetricColor = volData.rgb;
     float alpha = volData.a;
 
-    // Couleur de glow (vous pouvez ajuster selon l'effet désiré)
-    vec3 glowColor = vec3(0.73, 0.85, 1.0);
-
-    // On ajoute le glow en mode additif : la contribution glow est modulée par un facteur
-    vec3 finalColor = mix(sceneColor, volumetricColor, alpha) + glow * glowColor;
+    vec3 finalColor = mix(sceneColor, volumetricColor, alpha);
 
     gl_FragColor = vec4(finalColor, 1.0);
 }
