@@ -22,33 +22,31 @@ vec3 hash3(vec3 p) {
     return fract(sin(p) * 43758.5453);
 }
 
+// Prédéfinition des 27 offsets dans un tableau constant
+const vec3 offsets[27] = vec3[27](vec3(-1.0, -1.0, -1.0), vec3(0.0, -1.0, -1.0), vec3(1.0, -1.0, -1.0), vec3(-1.0, 0.0, -1.0), vec3(0.0, 0.0, -1.0), vec3(1.0, 0.0, -1.0), vec3(-1.0, 1.0, -1.0), vec3(0.0, 1.0, -1.0), vec3(1.0, 1.0, -1.0), vec3(-1.0, -1.0, 0.0), vec3(0.0, -1.0, 0.0), vec3(1.0, -1.0, 0.0), vec3(-1.0, 0.0, 0.0), vec3(0.0, 0.0, 0.0), vec3(1.0, 0.0, 0.0), vec3(-1.0, 1.0, 0.0), vec3(0.0, 1.0, 0.0), vec3(1.0, 1.0, 0.0), vec3(-1.0, -1.0, 1.0), vec3(0.0, -1.0, 1.0), vec3(1.0, -1.0, 1.0), vec3(-1.0, 0.0, 1.0), vec3(0.0, 0.0, 1.0), vec3(1.0, 0.0, 1.0), vec3(-1.0, 1.0, 1.0), vec3(0.0, 1.0, 1.0), vec3(1.0, 1.0, 1.0));
+
+/// Computes a simplified cellular noise value.
+/// It returns the difference between the two smallest distances within the 3x3x3 neighborhood.
+///
+/// @param P The input 3D point.
+/// @return The cellular noise value (F2 - F1).
 float cellularNoise(vec3 P) {
     vec3 Pi = floor(P);
     vec3 Pf = fract(P);
-    float F1 = 1.0; // On va chercher la distance minimale
-    float F2 = 1.0;
+    float F1 = 1e10;
+    float F2 = 1e10;
 
-    // Parcourir les cellules voisines (3x3x3)
-    for(int xi = -1; xi <= 1; xi++) {
-        for(int yi = -1; yi <= 1; yi++) {
-            for(int zi = -1; zi <= 1; zi++) {
-                vec3 offset = vec3(float(xi), float(yi), float(zi));
-
-                // Obtenir le point caractéristique aléatoire de la cellule
-                vec3 cellPoint = hash3(Pi + offset);
-
-                // Calculer la distance entre notre point et le point caractéristique
-                vec3 diff = offset + cellPoint - Pf;
-
-                float d = length(diff);
-
-                if(d < F1) {
-                    F2 = F1;
-                    F1 = d;
-                } else if(d < F2) {
-                    F2 = d;
-                }
-            }
+    // Iterate over the predefined 27 offsets.
+    for(int i = 0; i < 27; i++) {
+        vec3 offset = offsets[i];
+        vec3 cellPoint = hash3(Pi + offset);
+        vec3 diff = offset + cellPoint - Pf;
+        float d = length(diff);
+        if(d < F1) {
+            F2 = F1;
+            F1 = d;
+        } else if(d < F2) {
+            F2 = d;
         }
     }
     return F2 - F1;
