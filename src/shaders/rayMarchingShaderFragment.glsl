@@ -42,8 +42,6 @@ float cellularNoise(vec3 P) {
 
                 float d = length(diff);
 
-                //F1 = min(F1, d);
-
                 if(d < F1) {
                     F2 = F1;
                     F1 = d;
@@ -53,59 +51,7 @@ float cellularNoise(vec3 P) {
             }
         }
     }
-    //return F1;
-
-    // La différence F2 - F1 tend à marquer les bords des cellules
     return F2 - F1;
-}
-
-// ----------------------
-// Noise and FBM functions
-// ----------------------
-
-// Hash function for 3D noise
-float hash(vec3 p) {
-    return fract(sin(dot(p, vec3(12.9898, 78.233, 45.164))) * 43758.5453);
-}
-
-// 3D Noise function with trilinear interpolation
-float noise(vec3 x) {
-    vec3 i = floor(x);
-    vec3 f = fract(x);
-    vec3 u = f * f * (3.0 - 2.0 * f);
-
-    float a = hash(i);
-    float b = hash(i + vec3(1.0, 0.0, 0.0));
-    float c = hash(i + vec3(0.0, 1.0, 0.0));
-    float d = hash(i + vec3(1.0, 1.0, 0.0));
-    float e = hash(i + vec3(0.0, 0.0, 1.0));
-    float f0 = hash(i + vec3(1.0, 0.0, 1.0));
-    float g = hash(i + vec3(0.0, 1.0, 1.0));
-    float h = hash(i + vec3(1.0, 1.0, 1.0));
-
-    float mix1 = mix(a, b, u.x);
-    float mix2 = mix(c, d, u.x);
-    float mix3 = mix(e, f0, u.x);
-    float mix4 = mix(g, h, u.x);
-
-    float mix5 = mix(mix1, mix2, u.y);
-    float mix6 = mix(mix3, mix4, u.y);
-
-    return mix(mix5, mix6, u.z);
-}
-
-// Fractal Brownian Motion (FBM) function
-float fbm(vec3 p) {
-    float total = 0.0;
-    float amplitude = 0.1;
-    float frequency = 5.0;
-    const int octaves = 5;
-    for(int i = 0; i < octaves; i++) {
-        total += amplitude * noise(p * frequency);
-        frequency *= 2.0;
-        amplitude *= 0.5;
-    }
-    return total;
 }
 
 // ----------------------
@@ -134,7 +80,7 @@ float sdfSphere(vec3 p, vec3 sphereCenter, float radius) {
     //float displacement = fbm((p - sphereCenter) * 3.0 - radialDir * time) * 0.25;
     //float displacement = cellularNoise((p - sphereCenter) * 20.0 - radialDir * time) * 0.07;
 
-    float displacement = smoothstep(0.05, 0.55, cellularNoise((p - sphereCenter) * 10.0 - radialDir * time)) * 0.05;
+    float displacement = smoothstep(0.05, 0.55, cellularNoise((p - sphereCenter) * 2.0 - radialDir * time)) * 0.05;
 
     return baseDist + displacement;
 }
@@ -172,17 +118,17 @@ vec4 computeVolumetricColor(vec3 ro, vec3 rd) {
     const float h = 0.1;// Seuil pour l'accumulation
     vec3 tc = vec3(0.0); // Accumulateur de couleur (densité)
 
-    for(int i = 0; i < 32; i++) {
+    for(int i = 0; i < 48; i++) {
         if(td > 2.0 || d < 0.000001 * t || t > 10000.0)
             break;
         vec3 p = ro + t * rd;
-        d = sdfSphere(p, spherePosition, sphereRadius * 1.175);
+        d = sdfSphere(p, spherePosition, sphereRadius * 1.158);
         ld = (h - d) * step(d, h);
         w = (1.4 - td) * ld;
-        tc += w * w + 1.0 / 50.0;
+        tc += w * w + 1.0 / 70.0;
         td += w + 1.0 / 200.0;
         d = max(d, 0.01);
-        t += d * 0.95;
+        t += d * 0.9;
     }
 
     vec3 volColor = firePalette(tc.x);

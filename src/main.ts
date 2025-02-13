@@ -15,8 +15,11 @@ import {
   Texture,
   PointLight,
   Engine,
+  PBRMetallicRoughnessMaterial,
+  PBRMaterial,
 } from "@babylonjs/core";
 
+import "@babylonjs/core/Materials/Textures/Loaders/ktxTextureLoader";
 import "@babylonjs/core/Debug/debugLayer";
 import "@babylonjs/inspector";
 
@@ -97,7 +100,7 @@ class VolumetricScene {
     // Create camera
     const camera = new FreeCamera(
       "freeCamera",
-      ScaleManager.toSimulationVector(new Vector3(0, 0, -424_500)),
+      ScaleManager.toSimulationVector(new Vector3(0, 0, -450_000)),
       this.scene
     );
     camera.setTarget(Vector3.Zero());
@@ -132,10 +135,37 @@ class VolumetricScene {
     );
     sphere.position = new Vector3(0, 0, 0);
 
-    const sphereMaterial = new StandardMaterial("sphereMat", this.scene);
-    sphereMaterial.emissiveColor = new Color3(1, 0.55, 0.1);
-    sphereMaterial.alpha = 0.9;
-    sphere.material = sphereMaterial;
+    let sunMaterial = new StandardMaterial("sunMaterial", this.scene);
+
+    const emissiveTexture = (sunMaterial.emissiveTexture = new Texture(
+      "textures/granulation_emissive.ktx2",
+      this.scene
+    ));
+    emissiveTexture.wrapU = Texture.WRAP_ADDRESSMODE;
+    emissiveTexture.wrapV = Texture.WRAP_ADDRESSMODE;
+    emissiveTexture.uScale = 100;
+    emissiveTexture.vScale = 75;
+    sunMaterial.emissiveTexture = emissiveTexture;
+
+    const bumpTexture = (sunMaterial.bumpTexture = new Texture(
+      "textures/granulation_bump.ktx2",
+      this.scene
+    ));
+    bumpTexture.wrapU = Texture.WRAP_ADDRESSMODE;
+    bumpTexture.wrapV = Texture.WRAP_ADDRESSMODE;
+    bumpTexture.uScale = 100;
+    bumpTexture.vScale = 75;
+    sunMaterial.bumpTexture = bumpTexture;
+    bumpTexture.updateSamplingMode(Texture.TRILINEAR_SAMPLINGMODE);
+
+    sunMaterial.emissiveColor = new Color3(0, 0, 0);
+
+    sunMaterial.useParallax = true;
+    sunMaterial.useParallaxOcclusion = true;
+    sunMaterial.parallaxScaleBias = 0.01;
+
+    sunMaterial.roughness = 0.0;
+    sphere.material = sunMaterial;
 
     // Create a point light positioned at the center of the sphere
     const sunLight = new PointLight("sun", sphere.position, this.scene);
@@ -155,6 +185,7 @@ class VolumetricScene {
         "inverseView",
         "cameraNear",
         "cameraFar",
+        "noiseTexture",
       ],
       null,
       1,
@@ -164,6 +195,9 @@ class VolumetricScene {
     const depthRenderer = new DepthRenderer(this.scene);
     depthRenderer.useOnlyInActiveCamera = true;
     const depthTexture = depthRenderer.getDepthMap();
+
+    // Load your noise texture
+    const noiseTexture = new Texture("textures/noise.png", this.scene);
 
     postProcess.onApply = (effect) => {
       effect.setVector2(
@@ -185,6 +219,7 @@ class VolumetricScene {
       effect.setFloat("cameraNear", camera.minZ);
       effect.setFloat("cameraFar", camera.maxZ);
       effect.setTexture("depthSampler", depthTexture);
+      effect.setTexture("noiseTexture", noiseTexture);
     };
   }
 
@@ -203,7 +238,7 @@ class VolumetricScene {
 const canvas = document.getElementById("renderCanvas") as HTMLCanvasElement;
 if (!canvas) throw new Error("Canvas not found!");
 
-const useWebGPU = false;
+const useWebGPU = true;
 
 const myScene = new VolumetricScene(canvas, useWebGPU);
 await myScene.init();
