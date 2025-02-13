@@ -6,7 +6,6 @@ import {
   PostProcess,
   Vector2,
   Effect,
-  Ray,
   Matrix,
   DepthRenderer,
   StandardMaterial,
@@ -14,8 +13,8 @@ import {
   FreeCamera,
   CubeTexture,
   Texture,
-  FresnelParameters,
   PointLight,
+  Engine,
 } from "@babylonjs/core";
 
 import "@babylonjs/core/Debug/debugLayer";
@@ -30,123 +29,182 @@ Effect.ShadersStore["rayMarchingShaderFragmentShader"] =
  */
 class ScaleManager {
   private static readonly SCALE_FACTOR = 1 / 1_000;
+  /**
+   * Converts kilometers to simulation units.
+   *
+   * @param value_km - Distance in kilometers.
+   * @returns The distance in simulation units.
+   */
   public static toSimulationUnits(value_km: number): number {
     return value_km * this.SCALE_FACTOR;
   }
+  /**
+   * Converts a position from kilometers to simulation units.
+   *
+   * @param position_km - The position vector in kilometers.
+   * @returns The position vector in simulation units.
+   */
   public static toSimulationVector(position_km: Vector3): Vector3 {
     return position_km.scale(this.SCALE_FACTOR);
   }
 }
 
+/**
+ * Class representing a volumetric scene.
+ *
+ * This class creates a BabylonJS scene with a skybox, a planet ("star") sphere, a free camera,
+ * a point light, and a post-process that applies a custom ray marching shader.
+ *
+ * @remarks The engine type is chosen based on the `useWebGPU` parameter.
+ */
+class VolumetricScene {
+  public engine!: Engine | WebGPUEngine;
+  public scene!: Scene;
+
+  /**
+   * Creates a new instance of the VolumetricScene.
+   *
+   * @param canvas - The HTML canvas element to render on.
+   * @param useWebGPU - If true, uses WebGPUEngine; otherwise, uses the default Engine (WebGL).
+   */
+  constructor(
+    private canvas: HTMLCanvasElement,
+    private useWebGPU: boolean = true
+  ) {}
+
+  /**
+   * Asynchronously initializes the scene.
+   *
+   * Sets up the engine (WebGPU or WebGL), creates the scene, camera, skybox, sphere,
+   * point light, and post-process with the ray marching shader.
+   *
+   * @returns A promise that resolves when initialization is complete.
+   */
+  public async init(): Promise<void> {
+    if (this.useWebGPU) {
+      this.engine = new WebGPUEngine(this.canvas);
+      await (this.engine as WebGPUEngine).initAsync();
+    } else {
+      this.engine = new Engine(this.canvas, true);
+    }
+
+    // Create scene
+    this.scene = new Scene(this.engine);
+    this.scene.clearColor.set(0, 0, 0, 1);
+    this.scene.collisionsEnabled = true;
+    this.scene.debugLayer.show({ overlay: true });
+
+    // Create camera
+    const camera = new FreeCamera(
+      "freeCamera",
+      ScaleManager.toSimulationVector(new Vector3(0, 0, -424_500)),
+      this.scene
+    );
+    camera.setTarget(Vector3.Zero());
+    camera.attachControl(this.canvas, true);
+    camera.minZ = 0.001;
+    camera.maxZ = 100_000_000_000;
+    camera.keysUp = [90];
+    camera.keysLeft = [81];
+    camera.keysDown = [83];
+    camera.keysRight = [68];
+    camera.speed = 0.25;
+
+    // Create skybox
+    const skybox = MeshBuilder.CreateBox("skyBox", { size: 1000 }, this.scene);
+    const skyboxMaterial = new StandardMaterial("skyBox", this.scene);
+    skyboxMaterial.backFaceCulling = false;
+    skyboxMaterial.disableLighting = true;
+    skybox.material = skyboxMaterial;
+    skybox.infiniteDistance = true;
+    skyboxMaterial.reflectionTexture = new CubeTexture(
+      "textures/skybox",
+      this.scene
+    );
+    skyboxMaterial.reflectionTexture.coordinatesMode = Texture.SKYBOX_MODE;
+
+    // Create star
+    const sphereRadius = ScaleManager.toSimulationUnits(696_342);
+    const sphere = MeshBuilder.CreateSphere(
+      "star",
+      { diameter: sphereRadius, segments: 128 },
+      this.scene
+    );
+    sphere.position = new Vector3(0, 0, 0);
+
+    const sphereMaterial = new StandardMaterial("sphereMat", this.scene);
+    sphereMaterial.emissiveColor = new Color3(1, 0.55, 0.1);
+    sphereMaterial.alpha = 0.9;
+    sphere.material = sphereMaterial;
+
+    // Create a point light positioned at the center of the sphere
+    const sunLight = new PointLight("sun", sphere.position, this.scene);
+    sunLight.intensity = 10;
+
+    // Create the post-process
+    const postProcess = new PostProcess(
+      "rayMarching",
+      "rayMarchingShader",
+      [
+        "resolution",
+        "time",
+        "cameraPosition",
+        "spherePosition",
+        "sphereRadius",
+        "inverseProjection",
+        "inverseView",
+        "cameraNear",
+        "cameraFar",
+      ],
+      null,
+      1,
+      camera
+    );
+
+    const depthRenderer = new DepthRenderer(this.scene);
+    depthRenderer.useOnlyInActiveCamera = true;
+    const depthTexture = depthRenderer.getDepthMap();
+
+    postProcess.onApply = (effect) => {
+      effect.setVector2(
+        "resolution",
+        new Vector2(this.canvas.width, this.canvas.height)
+      );
+      effect.setFloat("time", performance.now() * 0.0003);
+      effect.setVector3("cameraPosition", camera.position);
+      effect.setVector3("spherePosition", sphere.position);
+      effect.setFloat(
+        "sphereRadius",
+        sphere.getBoundingInfo().boundingSphere.radius
+      );
+      effect.setMatrix(
+        "inverseProjection",
+        Matrix.Invert(camera.getProjectionMatrix())
+      );
+      effect.setMatrix("inverseView", Matrix.Invert(camera.getViewMatrix()));
+      effect.setFloat("cameraNear", camera.minZ);
+      effect.setFloat("cameraFar", camera.maxZ);
+      effect.setTexture("depthSampler", depthTexture);
+    };
+  }
+
+  /**
+   * Starts the render loop
+   */
+  public run(): void {
+    this.engine.runRenderLoop(() => {
+      this.scene.render();
+    });
+    window.addEventListener("resize", () => this.engine.resize());
+  }
+}
+
+// Init scene
 const canvas = document.getElementById("renderCanvas") as HTMLCanvasElement;
 if (!canvas) throw new Error("Canvas not found!");
 
-// Utilisation de WebGPUEngine au lieu de Engine
-const engine = new WebGPUEngine(canvas);
-await engine.initAsync();
+const useWebGPU = false;
 
-const createScene = (): Scene => {
-  const scene = new Scene(engine);
-  scene.clearColor.set(0, 0, 0, 1);
-  scene.collisionsEnabled = true;
-  scene.debugLayer.show({ overlay: true });
-
-  // Création d'une FreeCamera à la position souhaitée
-  const camera = new FreeCamera(
-    "freeCamera",
-    ScaleManager.toSimulationVector(new Vector3(0, 0, -424_500)),
-    scene
-  );
-  camera.setTarget(Vector3.Zero());
-  camera.attachControl(canvas, true);
-  camera.minZ = 0.001;
-  camera.maxZ = 100_000_000_000_000;
-  camera.keysUp = [90];
-  camera.keysLeft = [81];
-  camera.keysDown = [83];
-  camera.keysRight = [68];
-  camera.speed = 0.25;
-
-  // Création du Skybox
-  const skybox = MeshBuilder.CreateBox("skyBox", { size: 1000 }, scene);
-  const skyboxMaterial = new StandardMaterial("skyBox", scene);
-  skyboxMaterial.backFaceCulling = false;
-  skyboxMaterial.disableLighting = true;
-  skybox.material = skyboxMaterial;
-  skybox.infiniteDistance = true;
-  skyboxMaterial.disableLighting = true;
-  skyboxMaterial.reflectionTexture = new CubeTexture("textures/skybox", scene);
-  skyboxMaterial.reflectionTexture.coordinatesMode = Texture.SKYBOX_MODE;
-
-  // Création de la sphère "star"
-  const sphereRadius = ScaleManager.toSimulationUnits(696_342);
-  const sphere = MeshBuilder.CreateSphere(
-    "star",
-    { diameter: sphereRadius, segments: 128 },
-    scene
-  );
-  sphere.position = new Vector3(0, 0, 0);
-  const sphereMaterial = new StandardMaterial("sphereMat", scene);
-  sphereMaterial.emissiveColor = new Color3(1, 0.55, 0.1);
-  sphereMaterial.alpha = 0.9;
-  sphere.material = sphereMaterial;
-
-  // Light
-  const sunLight = new PointLight("sun", sphere.position);
-  sunLight.intensity = 10;
-
-  scene.onBeforeRenderObservable.add(() => {
-    const currentOrigin = camera.position.clone();
-    const currentDirection = camera.getForwardRay().direction.clone();
-    const ray = new Ray(currentOrigin, currentDirection, 1000);
-  });
-
-  // Création du post-process de ray marching
-  const postProcess = new PostProcess(
-    "rayMarching",
-    "rayMarchingShader",
-    [
-      "resolution",
-      "time",
-      "cameraPosition",
-      "spherePosition",
-      "sphereRadius",
-      "inverseProjection",
-      "inverseView",
-      "cameraNear",
-      "cameraFar",
-    ],
-    null,
-    1,
-    camera
-  );
-
-  const depthRenderer = new DepthRenderer(scene);
-  depthRenderer.useOnlyInActiveCamera = true;
-  const depthTexture = depthRenderer.getDepthMap();
-
-  postProcess.onApply = (effect) => {
-    effect.setVector2("resolution", new Vector2(canvas.width, canvas.height));
-    effect.setFloat("time", performance.now() * 0.0003);
-    effect.setVector3("cameraPosition", camera.position);
-    effect.setVector3("spherePosition", sphere.position);
-    effect.setFloat(
-      "sphereRadius",
-      sphere.getBoundingInfo().boundingSphere.radius
-    );
-    effect.setMatrix(
-      "inverseProjection",
-      Matrix.Invert(camera.getProjectionMatrix())
-    );
-    effect.setMatrix("inverseView", Matrix.Invert(camera.getViewMatrix()));
-    effect.setFloat("cameraNear", camera.minZ);
-    effect.setFloat("cameraFar", camera.maxZ);
-    effect.setTexture("depthSampler", depthTexture);
-  };
-
-  return scene;
-};
-
-const scene = createScene();
-engine.runRenderLoop(() => scene.render());
-window.addEventListener("resize", () => engine.resize());
+const myScene = new VolumetricScene(canvas, useWebGPU);
+await myScene.init();
+myScene.run();
