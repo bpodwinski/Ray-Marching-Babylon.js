@@ -11,11 +11,11 @@ This project is a demo showcasing real-time ray marching techniques using Babylo
 Babylon.js calculates the ray's origin and direction on the CPU using methods like `camera.getForwardRay()`. Collision detection is performed in the application code. Instead of sending the full ray to the shader, only key data is passed as uniforms:
 
 ## Demo
-[https://bpodwinski.github.io/Ray-Marching-Babylon.js/](https://bpodwinski.github.io/Ray-Marching-Babylon.js/)
+[https://bpodwinski.github.io/Ray-Marching-Babylon.js](https://bpodwinski.github.io/Ray-Marching-Babylon.js)
 
 ## Getting Started
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) (v12 or later)
+- [Node.js](https://nodejs.org/)
 - [npm](https://www.npmjs.com/)
